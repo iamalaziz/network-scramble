@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+
 import type { Download, Locator, Page } from "@playwright/test";
 
 import { buildNetworkFrame } from "../src/app/network-scene/scene-model";
@@ -102,12 +104,13 @@ export async function clickExport(page: Page, label = "Export PNG"): Promise<Dow
 export function getHubExportRatios(
   values: Readonly<Record<string, unknown>>,
   seconds: number,
+  durationSeconds = NETWORK_SHOT_SECONDS,
 ): readonly { readonly x: number; readonly y: number; readonly half: number }[] {
   const frame = { height: 1080, width: 1920, x: -960, y: -540 };
   const model = buildNetworkFrame({
     frame,
     params: readNetworkSceneParams(values),
-    progress: seconds / NETWORK_SHOT_SECONDS,
+    progress: seconds / durationSeconds,
     timeSeconds: seconds,
   });
   return model.hubs.map((hub) => ({
@@ -115,6 +118,37 @@ export function getHubExportRatios(
     x: (hub.screen.x - frame.x) / frame.width,
     y: (hub.screen.y - frame.y) / frame.height,
   }));
+}
+
+/** Shorten the shot through the real timeline duration editor so video exports stay small. */
+export async function setShotDuration(page: Page, seconds: number): Promise<void> {
+  await showTimelineScrubber(page);
+  await page.getByRole("button", { name: "Edit timeline duration" }).click();
+  const editor = page.getByRole("textbox", { name: "timeline duration" });
+  await editor.fill(`${seconds}s`);
+  await editor.press("Enter");
+  await expect(page.getByRole("slider", { name: "Playback position" })).toHaveAttribute(
+    "aria-valuemax",
+    String(seconds),
+  );
+}
+
+/** Runtime video export frame times: 30 FPS across the timeline duration. */
+export function getVideoSchedule(durationSeconds: number) {
+  const frameCount = Math.ceil(durationSeconds * 30 - 1e-9);
+  return Array.from({ length: frameCount }, (_, index) => ({
+    durationSeconds: Math.min(durationSeconds, (index + 1) / 30) - index / 30,
+    index,
+    timeSeconds: index / 30,
+  }));
+}
+
+/** The encoder picks the real container (MP4 falls back to WebM without H.264); read it from the bytes. */
+export async function readVideoMediaType(download: Download): Promise<"video/mp4" | "video/webm"> {
+  const path = await download.path();
+  if (!path) throw new Error("Playwright did not expose the downloaded video path.");
+  const bytes = await fs.readFile(path);
+  return bytes.subarray(4, 8).toString("latin1") === "ftyp" ? "video/mp4" : "video/webm";
 }
 
 export async function readFrameCount(page: Page): Promise<number> {

@@ -35,6 +35,24 @@ Active change: network-scramble-first-delivery
 - Result: the app id now keys persistence as `toolcraft:network-scramble:state:*`, so workspace state saved under the old `crawler` id is no longer loaded.
 - Checks: `tsc --noEmit` passed; `vitest run src/app` 744 passed, 1 failed (the known Windows path-separator framework test above).
 
+### network-video-export
+
+- Change ID: network-video-export
+- Request: "add video export feature" — the user's answer to the offer to add MP4/WebM video export after asking "how can I export generated animation to use on my other sites?".
+- Task type: export capability change (runtime video module, export intent, acceptance rows, browser proof); renderer unchanged.
+- User-visible result: a Video Export section (Format MP4/WebM, Resolution Current/4K) sits directly below Image Export, and the sticky footer adds Export MP4 / Export WebM, which downloads the whole shot at 30 FPS for the timeline duration.
+- Source/reference checked: the user's message in this conversation (transcript `e018af35-5e19-49aa-8b1e-3e8b3e738f22`, message `20f652d8-b3e4-4487-a89f-890f874c92f6`).
+- Reference inputs: None — no media reference was supplied.
+- Docs/contracts read: AGENTS.md, workflow.md, core/setup-export.md, core/media-upload.md, schema-reference.md, component-rules.md, acceptance-testing.md, performance.md.
+- Contract rules applied: output-export-required, timeline-enabled-behavior, controls-section-inventory-required, acceptance-product-observable, infinity-canvas-scene-bounds, workflow-required.
+- View interaction intent: unchanged `non-spatial`.
+- Interaction ownership: unchanged; Video Export settings and the footer action are runtime-owned.
+- Decision: add `videoExportModule()` and record `exportIntent.video` as `user-requested` with the verbatim quote; image export stays. The existing `networkExportRenderer` already draws from the supplied frame time, so runtime video samples it at 30 FPS with no renderer change. `export.video.format`/`export.video.resolution` join the runtime-only targets that must not invalidate the preview pass. Browser video proofs shorten the shot to 1 s through the real duration editor to keep encodes inside the protected budget, and read the real container from the downloaded bytes because MP4 falls back to WebM where H.264 encoding is unavailable.
+- Alternatives rejected: None: the module, settings and action are runtime-owned and the request named the capability.
+- State/output mapping: `export.video.format` → container/codec (MP4/AVC, else WebM/VP9/VP8); `export.video.resolution` → Current 1920×1080 or 4K 3840×2160 for the 16:9 shot; timeline duration → frame count (30 FPS); `scene.rasterFrameRenderer` → every video frame; Background off still fills video with Background color.
+- Verification: `vitest run src/app/network-scene` — the four new runtime contracts (`export.video-format`, `export.video-resolution`, `export.video`, `canvas.infinity-video-export`) pass. Export gates (`app-acceptance.base-coverage`, `export-artifact`, `output-export-intent`) pass; `vitest run src/app` excluding network-scene leaves only the known Windows framework failures (alias path separator, timeout fixture under load). `npm run test:feature` is blocked by the signed journal EPERM bug, so the five rows (`shot.export.video-format`, `shot.export.video-resolution`, `shot.export.video`, `shot.canvas.infinity-video-export`, `shot.background.include`) ran directly through headless Playwright on `e2e/product-shot.spec.ts`: 5 passed in 45 s. No protected receipt was produced; measured performance was not run.
+- Risks: Risk: MP4 downloads may contain WebM (VP9) in browsers without H.264 encoding; the runtime reports the real extension. Risk: `test:feature` stays blocked on Windows until the journal rename bug is fixed upstream.
+
 ## Decisions
 
 ### Renderer
@@ -75,9 +93,9 @@ Active change: network-scramble-first-delivery
 
 ### Export
 
-- Decision: Toolcraft default image export (PNG/JPG, 2K/4K/8K); SVG and video not requested.
-- Reason: The request asks for the animation and controls, not an artifact format.
-- Evidence: `exportIntent` image toolcraft-default, svg/video not-requested; browser rows export.image, export.image-format, export.image-resolution, canvas.infinity-export.
+- Decision: Toolcraft default image export (PNG/JPG, 2K/4K/8K) plus user-requested video export (MP4/WebM, Current/4K); SVG not requested.
+- Reason: Image is the default artifact; the user asked "add video export feature" to use the animation on other sites.
+- Evidence: `exportIntent` image toolcraft-default, video user-requested, svg not-requested; browser rows export.image, export.image-format, export.image-resolution, canvas.infinity-export, export.video, export.video-format, export.video-resolution, canvas.infinity-video-export, background.include (video background preserved).
 
 ### Performance
 

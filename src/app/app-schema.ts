@@ -2,6 +2,7 @@ import {
   defineToolcraft,
   imageExportModule,
   timelineModule,
+  videoExportModule,
 } from "@/toolcraft/runtime";
 
 import appDefaults from "./app-defaults.json" with { type: "json" };
@@ -33,6 +34,7 @@ export const appSchema = defineToolcraft({
   },
   modules: [
     imageExportModule(),
+    videoExportModule(),
     timelineModule({ defaultDurationSeconds: NETWORK_SHOT_SECONDS, mode: "playback" }),
   ],
 });

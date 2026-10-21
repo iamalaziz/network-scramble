@@ -36,7 +36,15 @@ export const appProductReadiness: ToolcraftProductReadiness = {
   exportIntent: {
     image: { mode: "toolcraft-default" },
     svg: { mode: "not-requested" },
-    video: { mode: "not-requested" },
+    video: {
+      evidence: {
+        messageRef: "e018af35-5e19-49aa-8b1e-3e8b3e738f22/20f652d8-b3e4-4487-a89f-890f874c92f6",
+        messageText: "add video export feature",
+        quote: "add video export feature",
+        source: "user-message",
+      },
+      mode: "user-requested",
+    },
   },
   interactionOwnership: [
     {
@@ -162,16 +170,17 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
       "preview-hidden-when-excluded",
       "image-transparent-when-excluded",
       "infinity-viewport-color-and-dependency",
+      "video-background-preserved",
     ],
     componentType: "switch",
     evidence: "rendered-pixels",
     expectedObservable:
-      "Turning Background off removes the black fill behind the shot and exports a transparent PNG; turning it on restores the fill.",
+      "Turning Background off removes the black fill behind the shot and exports a transparent PNG while video keeps the fill; turning it on restores the fill.",
     fixture: "default network shot",
     id: "background.include",
     kind: "control",
     target: "export.includeBackground",
-    userAction: "Toggle Background and compare preview and PNG alpha.",
+    userAction: "Toggle Background and compare preview, PNG alpha and the exported video background.",
   }),
   runtimeRow({
     componentType: "color",
@@ -217,6 +226,45 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     kind: "control",
     target: "actions.output",
     userAction: "Pause the shot, click Export PNG and decode the download.",
+  }),
+  runtimeRow({
+    browser: { budget: "extended-io", file: NETWORK_RUNTIME_BROWSER_SPEC, testName: getNetworkBrowserTestName("export.video-format") },
+    componentType: "select",
+    evidence: "exported-bytes",
+    expectedObservable:
+      "Selecting MP4 or WebM downloads a decodable video of the encoder-supported container through the relabelled export button.",
+    fixture: "1 s network shot",
+    id: "export.video-format",
+    kind: "control",
+    optionCoverage: ["mp4", "webm"],
+    target: "export.video.format",
+    userAction: "Select WebM and MP4, export each and decode the downloads.",
+  }),
+  runtimeRow({
+    browser: { budget: "extended-io", file: NETWORK_RUNTIME_BROWSER_SPEC, testName: getNetworkBrowserTestName("export.video-resolution") },
+    componentType: "select",
+    evidence: "exported-bytes",
+    expectedObservable: "Current exports 1920×1080 video and 4K exports 3840×2160 video for the 16:9 shot.",
+    fixture: "1 s network shot",
+    id: "export.video-resolution",
+    kind: "control",
+    optionCoverage: ["current", "4k"],
+    target: "export.video.resolution",
+    userAction: "Select 4K and Current, export each and decode the video dimensions.",
+  }),
+  runtimeRow({
+    actionCoverage: ["export.png", "export.video"],
+    browser: { budget: "extended-io", file: NETWORK_RUNTIME_BROWSER_SPEC, testName: getNetworkBrowserTestName("export.video") },
+    componentType: "panelActions",
+    evidence: "exported-bytes",
+    exportArtifactCoverage: "all-required-video-export-behavior",
+    expectedObservable:
+      "Export MP4 downloads the whole shot at 30 FPS for the timeline duration, with lime hubs that move between decoded frames.",
+    fixture: "1 s network shot",
+    id: "export.video",
+    kind: "control",
+    target: "actions.output",
+    userAction: "Set the shot duration to 1 s, click Export MP4 and decode the download.",
   }),
   runtimeRow({
     componentType: "canvas",
@@ -275,6 +323,23 @@ export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
     kind: "runtime",
     target: "canvas.infinity",
     userAction: "Export PNG in finite and Infinity mode and compare decoded artifacts.",
+  }),
+  runtimeRow({
+    browser: {
+      budget: "extended-io",
+      file: NETWORK_RUNTIME_BROWSER_SPEC,
+      testName: getNetworkBrowserTestName("canvas.infinity-video-export"),
+    },
+    componentType: "canvas",
+    evidence: "exported-bytes",
+    expectedObservable:
+      "Infinity video export keeps the saved artboard dimensions, duration, frame count and decoded frames of the finite export.",
+    fixture: "1 s network shot",
+    id: "canvas.infinity-video-export",
+    infinityCanvasCoverage: "scene-bounds-video-export",
+    kind: "runtime",
+    target: "canvas.infinity",
+    userAction: "Export MP4 in finite and Infinity mode and compare decoded artifacts.",
   }),
   runtimeRow({
     componentType: "canvas viewport",
@@ -472,5 +537,25 @@ export const appControlSectionInventory: readonly ToolcraftControlSectionInvento
     id: "runtime.image-export",
     targets: ["export.image.format", "export.image.resolution"],
     title: "Image Export",
+  },
+  {
+    entity: "Video delivery",
+    entityId: "video-delivery",
+    finiteSelectors: [
+      {
+        reason: "Video format changes its own exported container and codec.",
+        role: "parameter",
+        target: "export.video.format",
+      },
+      {
+        reason: "Video resolution changes its own exported frame dimensions.",
+        role: "parameter",
+        target: "export.video.resolution",
+      },
+    ],
+    groupingReason: "Format and resolution jointly configure the exported video.",
+    id: "runtime.video-export",
+    targets: ["export.video.format", "export.video.resolution"],
+    title: "Video Export",
   },
 ];

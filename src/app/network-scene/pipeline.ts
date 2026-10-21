@@ -55,6 +55,8 @@ export const networkRuntimeOnlyTargets = [
   "appearance.background",
   "export.image.format",
   "export.image.resolution",
+  "export.video.format",
+  "export.video.resolution",
 ] as const;
 
 const intrinsicShotBounds = {

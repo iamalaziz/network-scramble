@@ -14,10 +14,11 @@ import {
   expectToolcraftInfinityCanvasBackgroundEvidence,
   expectToolcraftInfinityCanvasImageExportEvidence,
   expectToolcraftInfinityCanvasModeEvidence,
+  expectToolcraftInfinityCanvasVideoExportEvidence,
   observeInfinityCanvas,
   observeInfinityCanvasBackground,
 } from "./browser-infinity-canvas-evidence";
-import { expectToolcraftImageExportArtifact } from "./browser-media-export-evidence";
+import { expectToolcraftImageExportArtifact, expectToolcraftVideoExportArtifact } from "./browser-media-export-evidence";
 import { createToolcraftBrowserProofSession, type ToolcraftBrowserProofSession } from "./browser-proof-session";
 import { expectToolcraftStandardTimelinePlayback } from "./browser-standard-timeline-evidence";
 import { expectToolcraftViewportSideEffect } from "./browser-state-evidence-helpers";
@@ -28,6 +29,7 @@ import {
   controlTarget,
   dominantRgba,
   getHubExportRatios,
+  getVideoSchedule,
   LIME,
   minimumAlpha,
   NETWORK_CANVAS,
@@ -35,9 +37,12 @@ import {
   pausePlayback,
   pauseShotAt,
   readFrameCount,
+  readVideoMediaType,
   selectOption,
   setColor,
+  setShotDuration,
 } from "./product-network-support";
+import { inspectToolcraftVideoDownload } from "./video-artifact-inspection";
 import { expect, expectToolcraftCanvasRenderScaleEvidence, test } from "./toolcraft-product-test";
 
 const SHOT_SECONDS = 5;
@@ -53,8 +58,17 @@ async function exportPngInspection(page: Page, backgroundRgba: readonly [number,
   return inspectToolcraftImageDownload({ backgroundRgba, download: await clickExport(page), page });
 }
 
+const VIDEO_SECONDS = 1;
+const BACKGROUND_PROOF: readonly [number, number, number] = [32, 48, 64];
+
+function isNearRgb(rgba: readonly number[], rgb: readonly number[]): boolean {
+  return rgb.every((channel, index) => Math.abs(rgba[index]! - channel) <= 8);
+}
+
 test(getNetworkBrowserTestName("background.include"), async ({ page }) => {
   const session = await startSession(page);
+  await setShotDuration(page, VIDEO_SECONDS);
+  await setColor(page, "appearance.background", "#203040");
   const observePreview = session.observe((root) => {
     const layer = root.querySelector<HTMLElement>("[data-toolcraft-finite-background-layer]");
     return {
@@ -71,7 +85,26 @@ test(getNetworkBrowserTestName("background.include"), async ({ page }) => {
       const artifact = await inspectToolcraftImageDownload({ backgroundRgba: [0, 0, 0, 0], download, page });
       return { ...artifact.inspection, backgroundAlpha: minimumAlpha(artifact.observation.normalizedPixels) };
     },
-    { requirementId: "shot.background.include" },
+    {
+      requirementId: "shot.background.include",
+      video: {
+        exportArtifact: session.targetAction("actions.output", (actionPage) => clickExport(actionPage, "Export MP4")),
+        inspectArtifact: async (download) => {
+          const artifact = await inspectToolcraftVideoDownload({
+            backgroundRgba: [...BACKGROUND_PROOF, 255],
+            download,
+            page,
+            schedule: getVideoSchedule(VIDEO_SECONDS),
+          });
+          return {
+            ...artifact.inspection,
+            backgroundIncluded: artifact.observations.every((observation) =>
+              isNearRgb(dominantRgba(observation.normalizedPixels), BACKGROUND_PROOF),
+            ),
+          };
+        },
+      },
+    },
   );
   const backgroundSwitch = controlTarget(page, "export.includeBackground").getByRole("switch");
   await backgroundSwitch.click();
@@ -83,7 +116,7 @@ test(getNetworkBrowserTestName("background.include"), async ({ page }) => {
   const backgroundRestored = await observeInfinityCanvasBackground(page);
   await expectToolcraftInfinityCanvasBackgroundEvidence(
     { backgroundExcluded, backgroundRestored, infinite },
-    { expectedBackgroundColor: "#000000", requirementId: "shot.background.include", target: "export.includeBackground" },
+    { expectedBackgroundColor: "#203040", requirementId: "shot.background.include", target: "export.includeBackground" },
   );
 });
 
@@ -196,6 +229,108 @@ test(getNetworkBrowserTestName("export.image"), async ({ page }) => {
       expectedWidth: 4096,
       page,
       requirementId: "shot.export.image",
+    },
+  );
+});
+
+async function startVideoSession(page: Page): Promise<ToolcraftBrowserProofSession> {
+  const session = await startSession(page);
+  await setShotDuration(page, VIDEO_SECONDS);
+  return session;
+}
+
+async function inspectVideo(page: Page, label = "Export MP4") {
+  return inspectToolcraftVideoDownload({
+    backgroundRgba: [0, 0, 0, 255],
+    download: await clickExport(page, label),
+    page,
+    schedule: getVideoSchedule(VIDEO_SECONDS),
+  });
+}
+
+test(getNetworkBrowserTestName("export.video-format"), async ({ page }) => {
+  const session = await startVideoSession(page);
+  for (const [option, label] of [
+    ["WebM", "Export WebM"],
+    ["MP4", "Export MP4"],
+  ] as const) {
+    await selectOption(page, "export.video.format", option);
+    const mediaType = await readVideoMediaType(await clickExport(page, label));
+    if (option === "WebM") expect(mediaType).toBe("video/webm");
+    await expectToolcraftExportedArtifact(
+      session.targetAction("export.video.format", (actionPage) => clickExport(actionPage, label)),
+      async (download) => {
+        const artifact = await inspectToolcraftVideoDownload({
+          backgroundRgba: [0, 0, 0, 255],
+          download,
+          page,
+          schedule: getVideoSchedule(VIDEO_SECONDS),
+        });
+        expect(artifact.inspection.mediaType).toBe(mediaType);
+        return artifact.inspection;
+      },
+      { requirementId: "shot.export.video-format" },
+    );
+  }
+});
+
+test(getNetworkBrowserTestName("export.video-resolution"), async ({ page }) => {
+  const session = await startVideoSession(page);
+  for (const [option, width, height] of [
+    ["4K", 3840, 2160],
+    ["Current", 1920, 1080],
+  ] as const) {
+    await selectOption(page, "export.video.resolution", option);
+    await expectToolcraftExportedArtifact(
+      session.targetAction("export.video.resolution", (actionPage) => clickExport(actionPage, "Export MP4")),
+      async (download) => {
+        const artifact = await inspectToolcraftVideoDownload({
+          backgroundRgba: [0, 0, 0, 255],
+          download,
+          page,
+          schedule: getVideoSchedule(VIDEO_SECONDS),
+        });
+        expect({ height: artifact.inspection.height, width: artifact.inspection.width }).toEqual({ height, width });
+        return artifact.inspection;
+      },
+      { requirementId: "shot.export.video-resolution" },
+    );
+  }
+});
+
+test(getNetworkBrowserTestName("export.video"), async ({ page }) => {
+  const session = await startVideoSession(page);
+  await prepareHubOnlyShot(page);
+  const mediaType = await readVideoMediaType(await clickExport(page, "Export MP4"));
+  const schedule = getVideoSchedule(VIDEO_SECONDS);
+  const sampleIndices = [...new Set([0, Math.floor(schedule.length / 2), schedule.length - 1])];
+  const values = { "hubs.size": 64, "squares.color": "#000000" };
+  await expectToolcraftVideoExportArtifact(
+    session.targetAction("actions.output", (actionPage) => clickExport(actionPage, "Export MP4")),
+    {
+      animated: true,
+      backgroundRgba: [0, 0, 0, 255],
+      expectedDurationSeconds: VIDEO_SECONDS,
+      expectedHeight: 1080,
+      expectedMediaType: mediaType,
+      expectedSamples: sampleIndices.map((index) => {
+        const timeSeconds = schedule[index]!.timeSeconds;
+        return {
+          pixels: [
+            ...getHubExportRatios(values, timeSeconds, VIDEO_SECONDS).map((hub) => ({
+              rgba: [...LIME, 255] as [number, number, number, number],
+              xRatio: hub.x,
+              yRatio: hub.y,
+            })),
+            { rgba: [0, 0, 0, 255] as [number, number, number, number], xRatio: 0.98, yRatio: 0.98 },
+          ],
+          timeSeconds,
+        };
+      }),
+      expectedWidth: 1920,
+      page,
+      requirementId: "shot.export.video",
+      schedule,
     },
   );
 });
@@ -393,6 +528,21 @@ test(getNetworkBrowserTestName("canvas.infinity-export"), async ({ page }) => {
     {
       expectedSize: { height: 2304, width: 4096 },
       requirementId: "shot.canvas.infinity-export",
+      target: "canvas.infinity",
+    },
+  );
+});
+
+test(getNetworkBrowserTestName("canvas.infinity-video-export"), async ({ page }) => {
+  await startVideoSession(page);
+  const finite = await inspectVideo(page);
+  await controlTarget(page, "canvas.infinity").getByRole("switch").click();
+  const infinite = await inspectVideo(page);
+  await expectToolcraftInfinityCanvasVideoExportEvidence(
+    { finite: finite.inspection, infinite: infinite.inspection },
+    {
+      expectedSize: { height: 1080, width: 1920 },
+      requirementId: "shot.canvas.infinity-video-export",
       target: "canvas.infinity",
     },
   );

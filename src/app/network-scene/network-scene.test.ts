@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { getToolcraftVideoExportSize } from "@/toolcraft/runtime";
+
 import { appSchema } from "../app-schema";
 import { getNetworkRuntimeUnitTestName, getNetworkUnitTestName } from "./acceptance-rows";
 import { decodeBlock } from "./decode-text";
@@ -206,6 +208,50 @@ describe("network scene runtime", () => {
       expect(square.x).toBeGreaterThan(frame.x - 60);
       expect(square.x).toBeLessThan(frame.x + frame.width + 60);
     }
+  });
+
+  async function exportOps(timeSeconds: number, durationSeconds = NETWORK_SHOT_SECONDS): Promise<string[]> {
+    const context = createRecordingContext();
+    await networkExportRenderer.renderFrame({
+      context,
+      frame,
+      pixelRatio: 1,
+      rendererPipeline: null,
+      signal: new AbortController().signal,
+      state: { timeline: { durationSeconds }, values: {} } as never,
+      timeSeconds,
+      timelineProgress: timeSeconds / durationSeconds,
+    });
+    return context.ops;
+  }
+
+  it(getNetworkRuntimeUnitTestName("export.video-format"), () => {
+    expect(JSON.stringify(appSchema)).toContain("export.video.format");
+  });
+
+  it(getNetworkRuntimeUnitTestName("export.video-resolution"), () => {
+    const state = { values: {} } as never;
+    expect(getToolcraftVideoExportSize({ frame, resolution: "current", state })).toMatchObject({
+      height: 1080,
+      width: 1920,
+    });
+    expect(getToolcraftVideoExportSize({ frame, resolution: "4k", state })).toMatchObject({
+      height: 2160,
+      width: 3840,
+    });
+  });
+
+  it(getNetworkRuntimeUnitTestName("export.video"), async () => {
+    // Runtime video export samples the shared frame renderer at 30 FPS timestamps.
+    const first = await exportOps(0, 1);
+    const middle = await exportOps(15 / 30, 1);
+    expect(middle).not.toEqual(first);
+    expect(await exportOps(1, 1)).toEqual(first);
+  });
+
+  it(getNetworkRuntimeUnitTestName("canvas.infinity-video-export"), async () => {
+    expect(await exportOps(2.5)).toEqual(await exportOps(2.5));
+    expect(getNetworkShotRect({ height: 1080, width: 1920 })).toEqual(frame);
   });
 
   const viewportPaths = networkRendererPipelineRegistration.interactionInvalidation;
