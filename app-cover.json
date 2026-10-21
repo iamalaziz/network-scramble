@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "title": "Network Scramble",
+  "asset": "public/toolcraft/cover.png",
+  "generation": {
+    "kind": "app-composition",
+    "source": "src/app/app-composition.tsx",
+    "state": "app-cover-state.json",
+    "description": "Actual app PNG export (2K, 2048x1152) of the default shot held at 5.0 s of 5.03 s: response block resolved beside the lower hub, request block mid-scramble beside the upper hub. No editor UI."
+  }
+}
