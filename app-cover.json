@@ -6,6 +6,6 @@
     "kind": "app-composition",
     "source": "src/app/app-composition.tsx",
     "state": "app-cover-state.json",
-    "description": "Actual app PNG export (2K, 2048x1152) of the default shot held at 5.0 s of 5.03 s: response block resolved beside the lower hub, request block mid-scramble beside the upper hub. No editor UI."
+    "description": "Actual app PNG export (2K, 2048x1152) of the default shot held at 1.5 s of 5.03 s: Algorithm chapter with the Dijkstra search tree and lime shortest path between the hubs and its decoded label. No editor UI."
   }
 }

@@ -1,6 +1,19 @@
 {
   "values": "schema defaults (src/app/network-scene/scene-params.ts networkSceneDefaults)",
-  "canvas": { "width": 1920, "height": 1080, "infinity": false },
-  "timeline": { "durationSeconds": 5.03, "currentTimeSeconds": 5.0, "playing": false },
-  "export": { "format": "png", "resolution": "2k", "includeBackground": true, "background": "#000000" }
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "infinity": false
+  },
+  "timeline": {
+    "durationSeconds": 5.03,
+    "currentTimeSeconds": 1.5,
+    "playing": false
+  },
+  "export": {
+    "format": "png",
+    "resolution": "2k",
+    "includeBackground": true,
+    "background": "#000000"
+  }
 }
