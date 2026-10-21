@@ -4,9 +4,9 @@
 
 Mode: product
 
-Network Scramble: an animated network shot (zooming sparse square matrix over a faint dot grid, two travelling lime hubs with re-targeting spoke fans, glyph-scramble decoded mono labels) with controls to reach the requested case and PNG export of the current frame.
+Network Scramble: an animated network shot (zooming sparse square matrix over a faint dot grid, two travelling lime hubs with re-targeting spoke fans) that tells three chapters — an Algorithm Dijkstra search, a Distributed failover and a Testing sweep — with glyph-scramble decoded chapter labels, controls for every element and export of the current frame.
 
-Active change: network-scramble-first-delivery
+Active change: network-chapters-story
 
 ## Decision Trail
 
@@ -30,10 +30,39 @@ Active change: network-scramble-first-delivery
 
 ### rename-network-scramble
 
+- Change ID: rename-network-scramble
 - Request: "change project name to network-scramble".
-- Changed owner: `package.json` / `package-lock.json` name and `src/app/app-identity.ts` (`id: "network-scramble"`, `title: "Network Scramble"`). Signed `index.html` title/meta (`Crawler`) left unchanged.
-- Result: the app id now keys persistence as `toolcraft:network-scramble:state:*`, so workspace state saved under the old `crawler` id is no longer loaded.
-- Checks: `tsc --noEmit` passed; `vitest run src/app` 744 passed, 1 failed (the known Windows path-separator framework test above).
+- Task type: small identity edit (package name and app identity); no schema, renderer or behavior change.
+- User-visible result: the app identifies as Network Scramble.
+- Source/reference checked: the user's request only.
+- Reference inputs: None — no media reference was supplied.
+- Docs/contracts read: AGENTS.md, workflow.md, core/runtime-boundary.md.
+- Contract rules applied: workflow-required, persistence-policy-explicit.
+- View interaction intent: unchanged (`non-spatial`).
+- Interaction ownership: unchanged.
+- Decision: rename `package.json` / `package-lock.json` and `src/app/app-identity.ts` (`id: "network-scramble"`, `title: "Network Scramble"`); signed `index.html` title/meta (`Crawler`) left unchanged.
+- Alternatives rejected: None: the request names the exact new identity.
+- State/output mapping: the app id now keys persistence as `toolcraft:network-scramble:state:*`, so workspace state saved under the old `crawler` id is no longer loaded; rendered output is unchanged.
+- Verification: `tsc --noEmit` passed; `vitest run src/app` 744 passed, 1 failed (the known Windows path-separator framework test above).
+- Risks: Risk: workspaces saved under the old `crawler` id do not restore.
+
+### network-chapters-story
+
+- Change ID: network-chapters-story
+- Request: "this animation has nothing to do with request and response. What idea can I integrate to this animation that shows distributed system, backend, apis, frontend, testing, algorithm." → after the proposal, "yes" to the recommended 3-chapter version.
+- Task type: substantial renderer and schema change (new chapter overlay, Dijkstra replay, failover and test sweep, replacement of the request/response text controls).
+- User-visible result: the 5.03 s shot now tells three chapters — Algorithm (Dijkstra frontier from the upper hub to the lower hub, then a lime shortest path), Distributed (the node beside the upper hub blinks, goes hollow, the fans let go of it and a replica set is outlined) and Testing (a lime scan line crosses the frame; passing squares flash, a few fail and stay hollow). Each chapter has a dim title and two glyph-scramble decoded lines with live tokens (`{visited}`, `{cost}`, `{replicas}`, `{passed}`, `{failed}`, `{coverage}`) whose default copy names API gateway, backend service/DB and frontend e2e roles. New sections: Chapters, Path Search, Failover, Test Sweep; Decode gains Title opacity. Status Lines, Body Lines, Response, Request Lines and Request are removed.
+- Source/reference checked: the user's messages and the existing renderer; no visual reference.
+- Reference inputs: None — no video, GIF, frames, Figma or reference app was supplied; `referenceInputs: []` is unchanged.
+- Docs/contracts read: AGENTS.md, workflow.md, core/runtime-boundary.md, core/performance.md, core/control-selection.md, core/layout.md, core/timeline-animation.md, renderer-technique.md, performance.md, schema-reference.md, component-rules.md, decision-contract.md, acceptance-testing.md.
+- Contract rules applied: canvas-no-app-ui, infinity-canvas-scene-bounds, controls-product-coverage, controls-section-inventory-required, controls-component-layout-invariants, timeline-enabled-behavior, renderer-technique-inventory, acceptance-product-observable, performance-coverage-levels, workflow-required.
+- View interaction intent: unchanged `non-spatial` — still a flat 2D shot with a 2D camera push-in.
+- Interaction ownership: unchanged; every new control is a non-spatial property or timing value with no plausible canvas surface (the chapter effects are timeline-driven, so no canvas handle).
+- Decision: chapters are shot percentages (`chapters.cuts`, default 33.5 % / 67 %) so a duration edit rescales the story and the loop seam stays the cut at the end of Testing. Each chapter effect is a pure function of shot progress and time in `chapter-effects.ts`: the search runs Dijkstra (`path-search.ts`, 8-neighbour lattice, binary heap, box = start/goal ± 4 cells) on the hash-occupied lattice frozen at the chapter's start hub positions, and replays its settle order over the Timing window before revealing the path over the next 15 % of the chapter; the failed node and replicas are the nearest occupied cells left of the upper hub (so the label never covers them); the sweep classifies each visible square against the scan line and a second per-cell hash. Labels sit beside the lower hub (Algorithm, Testing) or the upper hub (Distributed), reserve their box with token placeholders, and default the Testing decode window above 100 % so the last label is still mid-scramble at the cut, as in the original shot. One accent color (`chapters.accent`) owns path, frontier, replicas, scan line and passes.
+- Alternatives rejected: showing all six topics at once (too dense for a 5 s shot; backend/API/frontend are carried by label copy); recomputing the search graph from the knocked-out squares (the graph would change every frame as labels move, making the frontier flicker); `code` multiline label editors (they render as standalone sections and would split every chapter into copy and timing stages; three single-line `text` fields keep each chapter one section); red/green pass/fail colors (the shot's palette is mono plus one lime accent).
+- State/output mapping: `chapters.cuts` → chapter boundaries; `chapters.accent` → path, frontier outlines, replica outlines, scan line and pass flashes; `search.window` → frontier replay window; `search.treeOpacity` → parent-edge lines; `search.pathWidth` → path line width; `failover.window` → fail moment and election moment; `failover.replicas` → outlined replica count; `sweep.window` → scan-line travel; `sweep.failRate` → hollow failing squares; `sweep.trail` → flash band behind the line; `<chapter>.title/headline/detail/labelWindow` → the chapter label copy and decode timing; `decode.titleOpacity` → title brightness; the same `drawNetworkFrame` feeds preview, PNG and video frames.
+- Verification: `tsc --noEmit` passed; `vitest run src/app/network-scene` 66 passed (new control rows, chapter order, Dijkstra correctness and unreachable goal, failover/fan release, sweep counts, mid-scramble cut). `vitest run src/app` with the concurrent video-export change merged: 771 passed, 1 failed (the known Windows path-separator framework test). `npm run test:feature` could not start: the signed journal (`scripts/toolcraft-journal-runs.mjs`) renames its pending run folder while `events.jsonl` is still open, which Windows rejects with EPERM on every run. The same headless Playwright path was run directly: `e2e/product-network.spec.ts` 42/42 passed (40 in the first run; `dots.size` and `hubs.size` lost their page to a Vite reload while the other session saved files and passed on rerun), and `shot.export.image`, `shot.timeline.playback`, `shot.canvas.infinity-export` in `e2e/product-shot.spec.ts` passed. `npm run ai:check` reports only `e2e/product-shot.spec.ts` over its 500-line budget (549 lines after the video tests). Exported 2K frames at 1.5 s, 2.5 s and 4.5 s were inspected for the path, failover and sweep. No protected receipt was produced; measured performance was not run.
+- Risks: Risk: a concurrent session is adding video export in the same files; both changes must be re-proved together. Risk: `test:feature` is blocked on Windows by the signed journal rename bug until the framework is fixed upstream. Risk: with very low density or anchors outside the frame the search goal can be unreachable inside its box; the label then shows `cost --` and no path draws.
 
 ### network-video-export
 
@@ -59,7 +88,7 @@ Active change: network-scramble-first-delivery
 
 - Decision: Custom Canvas 2D foreground (`NetworkCanvas`) using `useToolcraftProductSceneFrame`, Resolution scale backing (CSS × DPR × scale), and one registered pipeline (`preview-frame` composite per frame, `export-frame` batch export).
 - Reason: Dense animated rectangles, lines and a few text runs redraw every frame; Canvas 2D matches the PNG artifact and keeps preview/export on one drawing function.
-- Evidence: `src/app/network-scene/scene-draw.ts`, `pipeline.ts`, `export-renderer.ts`; unit test "export.image runtime contract" proves export draws the same operations as preview.
+- Evidence: `src/app/network-scene/scene-draw.ts`, `chapter-effects.ts`, `path-search.ts`, `pipeline.ts`, `export-renderer.ts`; unit test "export.image runtime contract" proves export draws the same operations as preview. Since `network-chapters-story` the preview pass also builds the active chapter overlay (bounded Dijkstra replay, failover or sweep classification); pipeline id is `network-scramble-v2`.
 
 ### View Interaction
 
@@ -87,8 +116,8 @@ Active change: network-scramble-first-delivery
 
 ### Controls
 
-- Decision: 26 built-in product controls in sections per entity; code editors render as standalone sections, so the Response and Request entities use workflow stages (copy vs timing).
-- Reason: Built-in slider, rangeSlider (size range, decode windows), color, vector, code and text controls cover every value model; no custom controls.
+- Decision: built-in product controls in sections per entity; since `network-chapters-story` each chapter (Path Search, Failover, Test Sweep) is one section holding its effect controls plus its label copy as single-line `text` fields and a decode-window `rangeSlider`; Chapters holds the cut points and shared accent. The Path Search and Test Sweep sections hold seven controls each, under the density threshold.
+- Reason: Built-in slider, discrete slider (spoke count, replicas), rangeSlider (size range, cut points, effect and decode windows), color, vector and text controls cover every value model; no custom controls.
 - Evidence: `appControlSectionInventory`; base-coverage and section gates pass.
 
 ### Export
@@ -100,7 +129,7 @@ Active change: network-scramble-first-delivery
 ### Performance
 
 - Decision: Workload dimensions `grid-spacing` (schema `squares.spacing`, minimum boundary 20 px) and `export-long-edge` (image resolution, 8192 px); passes `preview-frame` (composite, frame, main, retina) and `export-frame` (export, batch); viewport drag/zoom invalidate nothing and painting is suspended during viewport interaction.
-- Reason: Lattice spacing sets squares/dots per frame; export resolution scales export pixels.
+- Reason: Lattice spacing sets squares/dots per frame and the number of lattice cells in the Dijkstra box (bounded by the frame, ~5k cells at the 20 px minimum); export resolution scales export pixels. Every new chapter control is a constant-cost responsiveness redraw.
 - Evidence: `src/app/app-performance.ts`; structural performance gate passes. Measured performance was not run (first delivery is functional-only).
 
 ## Evidence
@@ -111,7 +140,7 @@ Active change: network-scramble-first-delivery
 
 ## Cover
 
-- Capture: `public/toolcraft/cover.png` from the app's own Export PNG at 2K, default values, paused at 5.0 s; settings in `app-cover-state.json`, metadata in `app-cover.json`. Inspected visually: both hubs, fans, resolved response block and mid-scramble request block, no editor UI.
+- Capture: `public/toolcraft/cover.png` recaptured for `network-chapters-story` from the app's own Export PNG at 2K (2048x1152), default values, fresh browser context, paused at 1.5 s of 5.03 s (Algorithm chapter, shortest path fully drawn); script `.toolcraft/scratch/network-scramble/cover-chapters.mjs`; settings in `app-cover-state.json`, metadata in `app-cover.json`. Inspected visually: lime path and search tree between the hubs, decoded `01 · algorithm` label with live visited/cost values, no editor UI.
 
 ## Verification
 

@@ -5,6 +5,8 @@ import {
   NETWORK_TEXT_FONT,
   NETWORK_TEXT_LINE_HEIGHT,
   type NetworkFrameModel,
+  type NetworkSpoke,
+  type NetworkSquare,
   type NetworkTextBlock,
 } from "./scene-model";
 import type { NetworkSceneParams } from "./scene-params";
@@ -17,8 +19,8 @@ export type NetworkFrameInput = Readonly<{
 }>;
 
 export type NetworkFrameSummary = Readonly<{
-  requestLocked: string;
-  responseLocked: string;
+  chapter: string;
+  labelLocked: string;
   spokes: number;
   squares: number;
 }>;
@@ -26,6 +28,36 @@ export type NetworkFrameSummary = Readonly<{
 function describeLocks(block: NetworkTextBlock): string {
   if (!block.decoded?.visible) return "hidden";
   return block.decoded.lines.map((line) => line.locked).join(",");
+}
+
+function strokeSquares(context: CanvasRenderingContext2D, squares: readonly NetworkSquare[]): void {
+  if (squares.length === 0) return;
+  context.beginPath();
+  for (const square of squares) {
+    const half = square.size / 2;
+    context.rect(square.x - half, square.y - half, square.size, square.size);
+  }
+  context.stroke();
+}
+
+function fillSquares(context: CanvasRenderingContext2D, squares: readonly NetworkSquare[]): void {
+  if (squares.length === 0) return;
+  context.beginPath();
+  for (const square of squares) {
+    const half = square.size / 2;
+    context.rect(square.x - half, square.y - half, square.size, square.size);
+  }
+  context.fill();
+}
+
+function strokeLines(context: CanvasRenderingContext2D, lines: readonly NetworkSpoke[], opacity: number): void {
+  for (const line of lines) {
+    context.globalAlpha = line.alpha * opacity;
+    context.beginPath();
+    context.moveTo(line.from.x, line.from.y);
+    context.lineTo(line.to.x, line.to.y);
+    context.stroke();
+  }
 }
 
 /**
@@ -54,24 +86,28 @@ export function paintNetworkFrame(
   }
   context.fill();
 
+  const overlay = model.overlay;
   context.lineWidth = params.spokeWidth;
   context.strokeStyle = params.squareColor;
-  for (const spoke of model.spokes) {
-    context.globalAlpha = spoke.alpha * params.spokeOpacity;
-    context.beginPath();
-    context.moveTo(spoke.from.x, spoke.from.y);
-    context.lineTo(spoke.to.x, spoke.to.y);
-    context.stroke();
-  }
+  strokeLines(context, model.spokes, params.spokeOpacity);
+  strokeLines(context, overlay.tree, 1);
 
   context.globalAlpha = 1;
   context.fillStyle = params.squareColor;
-  context.beginPath();
-  for (const square of model.squares) {
-    const half = square.size / 2;
-    context.rect(square.x - half, square.y - half, square.size, square.size);
+  fillSquares(context, model.squares);
+  strokeSquares(context, overlay.hollow);
+
+  context.strokeStyle = params.chapterAccent;
+  context.lineWidth = params.searchPathWidth;
+  strokeLines(context, overlay.path, 1);
+  context.globalAlpha = 1;
+  context.fillStyle = params.chapterAccent;
+  fillSquares(context, overlay.accentFills);
+  context.lineWidth = 1.5;
+  strokeSquares(context, overlay.accentOutlines);
+  if (overlay.scanX !== null) {
+    context.fillRect(overlay.scanX - 1, model.frame.y, 2, model.frame.height);
   }
-  context.fill();
 
   const hubHalf = model.hubSize / 2;
   for (const hub of model.hubs) {
@@ -83,20 +119,19 @@ export function paintNetworkFrame(
   context.textBaseline = "top";
   context.textAlign = "left";
   context.fillStyle = params.squareColor;
-  for (const block of [model.response, model.request]) {
-    block.lines.forEach((line, index) => {
-      if (line.alpha <= 0 || line.text.length === 0) return;
-      context.globalAlpha = line.alpha;
-      context.fillText(line.text, block.left, block.top + index * NETWORK_TEXT_LINE_HEIGHT);
-    });
-  }
+  const block = model.label;
+  block.lines.forEach((line, index) => {
+    if (line.alpha <= 0 || line.text.length === 0) return;
+    context.globalAlpha = line.alpha;
+    context.fillText(line.text, block.left, block.top + index * NETWORK_TEXT_LINE_HEIGHT);
+  });
   context.restore();
 }
 
 export function summarizeNetworkFrame(model: NetworkFrameModel): NetworkFrameSummary {
   return Object.freeze({
-    requestLocked: describeLocks(model.request),
-    responseLocked: describeLocks(model.response),
+    chapter: model.chapter.id,
+    labelLocked: describeLocks(model.label),
     spokes: model.spokes.length,
     squares: model.squares.length,
   });

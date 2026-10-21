@@ -3,9 +3,14 @@ import { describe, expect, it } from "vitest";
 import { getToolcraftVideoExportSize } from "@/toolcraft/runtime";
 
 import { appSchema } from "../app-schema";
-import { getNetworkRuntimeUnitTestName, getNetworkUnitTestName } from "./acceptance-rows";
+import {
+  getNetworkRuntimeUnitTestName,
+  getNetworkUnitTestName,
+  NETWORK_CHAPTER_SECONDS,
+} from "./acceptance-rows";
 import { decodeBlock } from "./decode-text";
 import { networkExportRenderer } from "./export-renderer";
+import { searchLatticePath } from "./path-search";
 import { networkRendererPipelineRegistration } from "./pipeline";
 import { createRecordingContext } from "./recording-context.test-support";
 import { getNetworkShotRect } from "./scene-bounds";
@@ -42,6 +47,8 @@ function hubScreen(values: Readonly<Record<string, unknown>>, index: 0 | 1) {
   }).hubs[index].screen;
 }
 
+const at = NETWORK_CHAPTER_SECONDS;
+
 const controlEdits: readonly (readonly [id: string, values: Record<string, unknown>, time?: number])[] = [
   ["squares.spacing", { "squares.spacing": 40 }],
   ["squares.density", { "squares.density": 30 }],
@@ -57,12 +64,35 @@ const controlEdits: readonly (readonly [id: string, values: Record<string, unkno
   ["spokes.width", { "spokes.width": 3 }],
   ["spokes.opacity", { "spokes.opacity": 20 }],
   ["camera.zoom", { "camera.zoom": 2.5 }],
-  ["response.status", { "response.status": "< 500 ERR" }],
-  ["response.statusOpacity", { "response.statusOpacity": 90 }],
-  ["response.body", { "response.body": "credits required 9" }],
-  ["request.text", { "request.text": "> GET /v1/models" }],
+  ["chapters.accent", { "chapters.accent": "#00FFFF" }, at.path],
+  ["search.treeOpacity", { "search.treeOpacity": 90 }, at.search],
+  ["search.pathWidth", { "search.pathWidth": 5 }, at.path],
+  ["failover.replicas", { "failover.replicas": 6 }, at.elected],
+  ["sweep.failRate", { "sweep.failRate": 25 }, at.sweep],
+  ["sweep.trail", { "sweep.trail": 500 }, at.sweep],
   ["decode.rate", { "decode.rate": 50 }],
   ["decode.glyphs", { "decode.glyphs": "XYZ" }],
+  ["decode.titleOpacity", { "decode.titleOpacity": 90 }],
+  ...(["search", "failover", "sweep"] as const).flatMap((prefix) => {
+    const time = { failover: at.failover, search: at.search, sweep: at.sweep }[prefix];
+    return [
+      [`${prefix}.title`, { [`${prefix}.title`]: "99 · edited" }, time],
+      [`${prefix}.headline`, { [`${prefix}.headline`]: "edited headline" }, time],
+      [`${prefix}.detail`, { [`${prefix}.detail`]: "edited detail" }, time],
+    ] as const;
+  }),
+];
+
+/** Each range row proves both thumbs: [time, lower-thumb edit, upper-thumb edit]. */
+const rangeEdits: readonly (readonly [id: string, time: number, lower: unknown, upper: unknown])[] = [
+  ["squares.size", pausedSeconds, [6, 26], [1.5, 40]],
+  ["chapters.cuts", at.elected, [20, 67], [33.5, 45]],
+  ["search.window", at.search, [20, 70], [5, 40]],
+  ["search.labelWindow", at.search, [20, 55], [8, 30]],
+  ["failover.window", at.failover, [30, 40], [5, 15]],
+  ["failover.labelWindow", at.failover, [16, 60], [12, 30]],
+  ["sweep.window", at.sweep, [30, 92], [8, 70]],
+  ["sweep.labelWindow", at.sweep, [40, 115], [20, 80]],
 ];
 
 describe("network scene controls", () => {
@@ -72,11 +102,13 @@ describe("network scene controls", () => {
     });
   }
 
-  it(getNetworkUnitTestName("squares.size"), () => {
-    const base = drawOps();
-    expect(drawOps({ "squares.size": [6, 26] })).not.toEqual(base);
-    expect(drawOps({ "squares.size": [1.5, 40] })).not.toEqual(base);
-  });
+  for (const [id, time, lower, upper] of rangeEdits) {
+    it(getNetworkUnitTestName(id), () => {
+      const base = drawOps({}, time);
+      expect(drawOps({ [id]: lower }, time)).not.toEqual(base);
+      expect(drawOps({ [id]: upper }, time)).not.toEqual(base);
+    });
+  }
 
   it(getNetworkUnitTestName("upperHub.anchor"), () => {
     const base = hubScreen({}, 0);
@@ -95,20 +127,16 @@ describe("network scene controls", () => {
     expect(left.x).toBeLessThan(base.x);
     expect(up.y).toBeLessThan(base.y);
   });
-
-  it(getNetworkUnitTestName("response.window"), () => {
-    const midScramble = 1.5;
-    const base = drawOps({}, midScramble);
-    expect(drawOps({ "response.window": [30, 48] }, midScramble)).not.toEqual(base);
-    expect(drawOps({ "response.window": [22, 30] }, midScramble)).not.toEqual(base);
-  });
-
-  it(getNetworkUnitTestName("request.window"), () => {
-    const base = drawOps();
-    expect(drawOps({ "request.window": [60, 108] })).not.toEqual(base);
-    expect(drawOps({ "request.window": [93, 97] })).not.toEqual(base);
-  });
 });
+
+function frameAt(seconds: number, values: Readonly<Record<string, unknown>> = {}) {
+  return buildNetworkFrame({
+    frame,
+    params: readNetworkSceneParams(values),
+    progress: seconds / NETWORK_SHOT_SECONDS,
+    timeSeconds: seconds,
+  });
+}
 
 describe("network scene decode", () => {
   it("locks characters left to right and never fades the block in", () => {
@@ -121,16 +149,86 @@ describe("network scene decode", () => {
     expect(decode(40).lines[0]!.text).toBe("credits required 5");
   });
 
-  it("keeps the request block mid-scramble at the cut with default timing", () => {
-    const model = buildNetworkFrame({
-      frame,
-      params: readNetworkSceneParams({}),
-      progress: 0.9999,
-      timeSeconds: NETWORK_SHOT_SECONDS * 0.9999,
+  it("keeps the Testing label mid-scramble at the cut with default timing", () => {
+    const model = frameAt(NETWORK_SHOT_SECONDS * 0.9999);
+    expect(model.chapter.id).toBe("sweep");
+    const [headline] = model.label.decoded!.lines;
+    expect(headline!.text.startsWith("frontend e2e")).toBe(true);
+    expect(headline!.locked).toBeLessThan(Array.from(headline!.text).length);
+  });
+});
+
+describe("network scene chapters", () => {
+  it("plays Algorithm, Distributed and Testing in order", () => {
+    expect(frameAt(at.search).chapter.id).toBe("search");
+    expect(frameAt(at.path).chapter.id).toBe("search");
+    expect(frameAt(at.failover).chapter.id).toBe("failover");
+    expect(frameAt(at.elected).chapter.id).toBe("failover");
+    expect(frameAt(at.sweep).chapter.id).toBe("sweep");
+    expect(frameAt(at.search).label.lines[0]!.text).toBe("01 · algorithm");
+    expect(frameAt(at.elected).label.lines[0]!.text).toBe("02 · distributed");
+    expect(frameAt(at.sweep).label.lines[0]!.text).toBe("03 · testing");
+  });
+
+  it("finds the Dijkstra shortest path on an open lattice", () => {
+    const result = searchLatticePath({
+      goal: { column: 3, row: 2 },
+      isOpen: () => true,
+      margin: 2,
+      start: { column: 0, row: 0 },
     });
-    const [first] = model.request.decoded!.lines;
-    expect(first!.text.startsWith("> POST /v2")).toBe(true);
-    expect(first!.locked).toBeLessThan(Array.from("> POST /v2/messages/batch").length);
+    expect(result.cost).toBeCloseTo(2 * Math.SQRT2 + 1);
+    expect(result.path![0]).toEqual({ column: 0, row: 0 });
+    expect(result.path!.at(-1)).toEqual({ column: 3, row: 2 });
+    expect(result.order[0]).toEqual({ column: 0, row: 0 });
+    expect(result.parents[0]).toBe(-1);
+  });
+
+  it("routes around closed cells and reports an unreachable goal", () => {
+    const wall = (column: number, row: number) => column !== 1 || row === 3;
+    const around = searchLatticePath({ goal: { column: 2, row: 0 }, isOpen: wall, margin: 3, start: { column: 0, row: 0 } });
+    expect(around.path!.some((cell) => cell.row === 3)).toBe(true);
+    const blocked = searchLatticePath({
+      goal: { column: 2, row: 0 },
+      isOpen: (column) => column !== 1,
+      margin: 1,
+      start: { column: 0, row: 0 },
+    });
+    expect(blocked.path).toBeNull();
+    expect(blocked.cost).toBeNull();
+  });
+
+  it("grows the search frontier and then draws the shortest path", () => {
+    const searching = frameAt(at.search);
+    expect(searching.overlay.tree.length).toBeGreaterThan(0);
+    expect(searching.overlay.accentOutlines.length).toBeGreaterThan(0);
+    expect(searching.overlay.path).toHaveLength(0);
+    const solved = frameAt(at.path);
+    expect(solved.overlay.path.length).toBeGreaterThan(0);
+    expect(solved.overlay.accentFills.length).toBeGreaterThan(0);
+    expect(solved.label.lines[2]!.text).toMatch(/^visited \d+ · cost \d+\.\d$/u);
+  });
+
+  it("fails a node, drops it from the fans and elects replicas", () => {
+    const before = frameAt(at.failover, { "failover.window": [30, 40] });
+    expect(before.overlay.hollow).toHaveLength(0);
+    const elected = frameAt(at.elected);
+    expect(elected.overlay.hollow).toHaveLength(1);
+    expect(elected.overlay.accentOutlines).toHaveLength(3);
+    expect(frameAt(at.elected, { "failover.replicas": 5 }).overlay.accentOutlines).toHaveLength(5);
+    const failed = elected.overlay.hollow[0]!;
+    expect(elected.spokes.every((spoke) => Math.hypot(spoke.to.x - failed.x, spoke.to.y - failed.y) > 1)).toBe(true);
+  });
+
+  it("sweeps a scan line that counts passing and failing squares", () => {
+    const sweep = frameAt(at.sweep);
+    expect(sweep.overlay.scanX).not.toBeNull();
+    expect(sweep.overlay.accentFills.length).toBeGreaterThan(0);
+    const live = frameAt(at.sweep, { "sweep.labelWindow": [0, 1] });
+    expect(live.label.lines[1]!.text).toMatch(/^frontend e2e · (\d+) passed · (\d+) failed$/u);
+    const none = frameAt(at.sweep, { "sweep.failRate": 0, "sweep.labelWindow": [0, 1] });
+    expect(none.overlay.hollow).toHaveLength(0);
+    expect(none.label.lines[1]!.text).toMatch(/ 0 failed$/u);
   });
 });
 

@@ -69,6 +69,6 @@ function paintPreview(
   canvas.dataset.networkRenderedTime = timeSeconds.toFixed(3);
   // Shot progress of the painted frame; the end of the shot cuts back to 0.
   canvas.dataset.timelineProgress = progress.toFixed(4);
-  canvas.dataset.networkRequestLocked = summary.requestLocked;
-  canvas.dataset.networkResponseLocked = summary.responseLocked;
+  canvas.dataset.networkChapter = summary.chapter;
+  canvas.dataset.networkLabelLocked = summary.labelLocked;
 }

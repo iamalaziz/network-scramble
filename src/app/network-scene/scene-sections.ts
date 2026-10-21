@@ -287,115 +287,220 @@ export const cameraSection = {
   title: "Camera",
 } satisfies ToolcraftControlSectionSchema;
 
-const windowDescription =
-  "Shot percentage where the glyph scramble starts and where the last character locks. Values above 100% keep the block mid-scramble at the cut.";
-
-function linesSection(
-  id: string,
-  title: string,
+const percentRange = (
   target: string,
-  defaultValue: string,
+  label: string,
+  defaultValue: readonly [number, number],
   description: string,
+  max = 100,
+) =>
+  ({
+    applicability: always,
+    defaultValue: [...defaultValue],
+    description,
+    label,
+    max,
+    min: 0,
+    performanceReason: redraw,
+    performanceRole: "responsiveness",
+    sliderValueKind: "continuous",
+    step: 0.5,
+    target,
+    type: "rangeSlider",
+    unit: "%",
+  }) as const;
+
+const tokenHelp = (tokens: string) => `Live values: ${tokens}.`;
+
+/** Dim steady title plus two decoded lines beside the chapter's hub. */
+function labelControls(
+  prefix: "search" | "failover" | "sweep",
+  copy: Readonly<{ detail: string; headline: string; title: string; window: readonly [number, number] }>,
+  tokens: string,
 ) {
+  const text = (field: "title" | "headline" | "detail", label: string, defaultValue: string, description: string) =>
+    ({
+      applicability: always,
+      defaultValue,
+      description,
+      label,
+      performanceReason: redraw,
+      performanceRole: "responsiveness",
+      target: `${prefix}.${field}`,
+      textValueKind: "single-line",
+      type: "text",
+    }) as const;
   return {
-    controls: {
-      lines: {
-        applicability: always,
-        defaultValue,
-        description,
-        label: false,
-        performanceReason: redraw,
-        performanceRole: "responsiveness",
-        target,
-        textValueKind: "multiline",
-        type: "code",
-      },
-    },
-    id,
-    title,
-  } satisfies ToolcraftControlSectionSchema;
+    title: text("title", "Title", copy.title, "Dim chapter line that holds steady and never scrambles."),
+    headline: text("headline", "Headline", copy.headline, `First decoded line. ${tokenHelp(tokens)}`),
+    detail: text("detail", "Detail", copy.detail, `Second decoded line. ${tokenHelp(tokens)}`),
+    labelWindow: percentRange(
+      `${prefix}.labelWindow`,
+      "Decode window",
+      copy.window,
+      "Chapter percentage where the glyph scramble starts and where the last character locks. Values above 100% keep the label mid-scramble when the chapter cuts.",
+      150,
+    ),
+  };
 }
 
-export const responseStatusSection = linesSection(
-  "response-status",
-  "Status Lines",
-  "response.status",
-  d.responseStatus,
-  "Dim lines beside the lower hub. They hold steady and never scramble.",
-);
-
-export const responseBodySection = linesSection(
-  "response-body",
-  "Body Lines",
-  "response.body",
-  d.responseBody,
-  "Lines that materialize as glyph scramble below the status lines.",
-);
-
-export const responseSection = {
+export const chaptersSection = {
   controls: {
-    statusOpacity: {
+    cuts: {
+      ...percentRange(
+        "chapters.cuts",
+        "Cut points",
+        d.chapterCuts,
+        "Shot percentages where the story cuts from Algorithm to Distributed and from Distributed to Testing.",
+      ),
+      max: 95,
+      min: 5,
+    },
+    accent: {
       applicability: always,
-      defaultValue: d.responseStatusOpacity,
-      label: "Status opacity",
+      defaultValue: d.chapterAccent,
+      description: "Highlight for the shortest path, the search frontier, elected replicas and passing tests.",
+      label: "Accent",
+      performanceReason: redraw,
+      performanceRole: "responsiveness",
+      target: "chapters.accent",
+      type: "color",
+    },
+  },
+  description: "The shot tells three chapters in order: an Algorithm path search, a Distributed failover and a Testing sweep.",
+  id: "chapters",
+  title: "Chapters",
+} satisfies ToolcraftControlSectionSchema;
+
+export const pathSearchSection = {
+  controls: {
+    window: percentRange(
+      "search.window",
+      "Timing",
+      d.searchWindow,
+      "Chapter percentage where Dijkstra starts expanding from the upper hub and where it reaches the lower hub. The shortest path then draws in.",
+    ),
+    treeOpacity: {
+      applicability: always,
+      defaultValue: d.searchTreeOpacity,
+      description: "Lines from each visited node back to the node it was reached from.",
+      label: "Tree opacity",
       max: 100,
       min: 0,
       performanceReason: redraw,
       performanceRole: "responsiveness",
       sliderValueKind: "continuous",
       step: 1,
-      target: "response.statusOpacity",
+      target: "search.treeOpacity",
       type: "slider",
       unit: "%",
     },
-    window: {
+    pathWidth: {
       applicability: always,
-      defaultValue: [...d.responseWindow],
-      description: windowDescription,
-      label: "Decode window",
-      max: 150,
-      min: 0,
+      defaultValue: d.searchPathWidth,
+      label: "Path width",
+      max: 6,
+      min: 0.5,
       performanceReason: redraw,
       performanceRole: "responsiveness",
       sliderValueKind: "continuous",
-      step: 0.5,
-      target: "response.window",
-      type: "rangeSlider",
-      unit: "%",
+      step: 0.25,
+      target: "search.pathWidth",
+      type: "slider",
+      unit: "px",
     },
+    ...labelControls(
+      "search",
+      { detail: d.searchDetail, headline: d.searchHeadline, title: d.searchTitle, window: d.searchLabelWindow },
+      "{visited} nodes settled, {total} nodes searched, {cost} path cost",
+    ),
   },
-  id: "response",
-  title: "Response",
+  description: "Algorithm chapter: a Dijkstra search across the occupied squares, labelled beside the lower hub.",
+  id: "path-search",
+  title: "Path Search",
 } satisfies ToolcraftControlSectionSchema;
 
-export const requestTextSection = linesSection(
-  "request-text",
-  "Request Lines",
-  "request.text",
-  d.requestText,
-  "Second block beside the upper hub. It appears late in the shot.",
-);
-
-export const requestSection = {
+export const failoverSection = {
   controls: {
-    window: {
+    window: percentRange(
+      "failover.window",
+      "Timing",
+      d.failoverWindow,
+      "Chapter percentage where the node beside the upper hub fails and starts blinking, and where it goes dark and the replica set is elected.",
+    ),
+    replicas: {
       applicability: always,
-      defaultValue: [...d.requestWindow],
-      description: windowDescription,
-      label: "Decode window",
-      max: 150,
+      defaultValue: d.failoverReplicas,
+      description: "Neighbours of the failed node outlined as the elected replica set.",
+      label: "Replicas",
+      max: 6,
+      min: 1,
+      performanceReason: redraw,
+      performanceRole: "responsiveness",
+      sliderValueKind: "discrete",
+      step: 1,
+      target: "failover.replicas",
+      type: "slider",
+      variant: "discrete",
+    },
+    ...labelControls(
+      "failover",
+      { detail: d.failoverDetail, headline: d.failoverHeadline, title: d.failoverTitle, window: d.failoverLabelWindow },
+      "{replicas} replica count",
+    ),
+  },
+  description: "Distributed chapter: a node fails, the hub fans let go of it and a replica set takes over, labelled beside the upper hub.",
+  id: "failover",
+  title: "Failover",
+} satisfies ToolcraftControlSectionSchema;
+
+export const testSweepSection = {
+  controls: {
+    window: percentRange(
+      "sweep.window",
+      "Timing",
+      d.sweepWindow,
+      "Chapter percentage where the scan line enters the left edge and where it has crossed the frame.",
+    ),
+    failRate: {
+      applicability: always,
+      defaultValue: d.sweepFailRate,
+      description: "Share of squares that fail when the scan line reaches them and stay hollow.",
+      label: "Fail rate",
+      max: 30,
       min: 0,
       performanceReason: redraw,
       performanceRole: "responsiveness",
       sliderValueKind: "continuous",
       step: 0.5,
-      target: "request.window",
-      type: "rangeSlider",
+      target: "sweep.failRate",
+      type: "slider",
       unit: "%",
     },
+    trail: {
+      applicability: always,
+      defaultValue: d.sweepTrail,
+      description: "Distance behind the scan line where passing squares still flash in the accent.",
+      label: "Trail",
+      max: 600,
+      min: 0,
+      performanceReason: redraw,
+      performanceRole: "responsiveness",
+      sliderValueKind: "continuous",
+      step: 10,
+      target: "sweep.trail",
+      type: "slider",
+      unit: "px",
+    },
+    ...labelControls(
+      "sweep",
+      { detail: d.sweepDetail, headline: d.sweepHeadline, title: d.sweepTitle, window: d.sweepLabelWindow },
+      "{passed}, {failed} and {total} squares, {coverage} percent of the frame scanned",
+    ),
   },
-  id: "request",
-  title: "Request",
+  description: "Testing chapter: a scan line validates every square, labelled beside the lower hub.",
+  id: "test-sweep",
+  title: "Test Sweep",
 } satisfies ToolcraftControlSectionSchema;
 
 export const decodeSection = {
@@ -426,6 +531,21 @@ export const decodeSection = {
       textValueKind: "single-line",
       type: "text",
     },
+    titleOpacity: {
+      applicability: always,
+      defaultValue: d.labelTitleOpacity,
+      description: "Brightness of the steady chapter titles above each decoded label.",
+      label: "Title opacity",
+      max: 100,
+      min: 0,
+      performanceReason: redraw,
+      performanceRole: "responsiveness",
+      sliderValueKind: "continuous",
+      step: 1,
+      target: "decode.titleOpacity",
+      type: "slider",
+      unit: "%",
+    },
   },
   id: "decode",
   title: "Decode",
@@ -440,10 +560,9 @@ export const networkSceneSections = [
   lowerHubSection,
   spokesSection,
   cameraSection,
-  responseStatusSection,
-  responseBodySection,
-  responseSection,
-  requestTextSection,
-  requestSection,
+  chaptersSection,
+  pathSearchSection,
+  failoverSection,
+  testSweepSection,
   decodeSection,
 ] as const;

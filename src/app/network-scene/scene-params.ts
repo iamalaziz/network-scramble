@@ -1,21 +1,39 @@
 export type NetworkPoint = Readonly<{ x: number; y: number }>;
 
+export type NetworkRange = readonly [number, number];
+
+/** Copy of one chapter label: a dim steady title plus two decoded lines. */
+export type NetworkChapterLabel = Readonly<{
+  detail: string;
+  headline: string;
+  title: string;
+  /** Chapter percentage where the scramble starts and where the last character locks. */
+  window: NetworkRange;
+}>;
+
 export type NetworkSceneParams = Readonly<{
   cameraZoom: number;
+  chapterAccent: string;
+  /** Shot percentages where the Distributed and Testing chapters begin. */
+  chapterCuts: NetworkRange;
   decodeGlyphs: string;
   decodeRate: number;
   dotOpacity: number;
   dotSize: number;
+  failoverLabel: NetworkChapterLabel;
+  failoverReplicas: number;
+  /** Chapter percentages where the node fails and where the replica set is elected. */
+  failoverWindow: NetworkRange;
   hubSize: number;
   hubTravel: number;
+  labelTitleOpacity: number;
   lowerHubAnchor: NetworkPoint;
   lowerHubColor: string;
-  requestLines: readonly string[];
-  requestWindow: readonly [number, number];
-  responseBodyLines: readonly string[];
-  responseStatusLines: readonly string[];
-  responseStatusOpacity: number;
-  responseWindow: readonly [number, number];
+  searchLabel: NetworkChapterLabel;
+  searchPathWidth: number;
+  searchTreeOpacity: number;
+  /** Chapter percentages where the search frontier starts and reaches the goal. */
+  searchWindow: NetworkRange;
   spokeCount: number;
   spokeOpacity: number;
   spokeWidth: number;
@@ -24,28 +42,45 @@ export type NetworkSceneParams = Readonly<{
   squareFalloff: number;
   squareSize: readonly [number, number];
   squareSpacing: number;
+  sweepFailRate: number;
+  sweepLabel: NetworkChapterLabel;
+  sweepTrail: number;
+  /** Chapter percentages where the scan line enters and leaves the frame. */
+  sweepWindow: NetworkRange;
   upperHubAnchor: NetworkPoint;
   upperHubColor: string;
 }>;
+
+const range = (lower: number, upper: number) => Object.freeze([lower, upper]) as NetworkRange;
 
 /** Schema defaults shared by the schema, renderer fallbacks, and tests. */
 export const networkSceneDefaults = Object.freeze({
   background: "#000000",
   cameraZoom: 1.45,
+  chapterAccent: "#DAFB33",
+  chapterCuts: range(33.5, 67),
   decodeGlyphs: "@&%#$*+=?!/<>0123456789",
   decodeRate: 24,
   dotOpacity: 18,
   dotSize: 2,
+  failoverDetail: "leader elected · quorum {replicas}/{replicas}",
+  failoverHeadline: "orders-svc node-07 unreachable",
+  failoverLabelWindow: range(12, 60),
+  failoverReplicas: 3,
+  failoverTitle: "02 · distributed",
+  failoverWindow: range(12, 40),
   hubSize: 24,
   hubTravel: 260,
+  labelTitleOpacity: 35,
   lowerHubAnchor: Object.freeze({ x: 0.02, y: 0.34 }),
   lowerHubColor: "#DAFB33",
-  requestText: "> POST /v2/messages/batch\n> key ak57",
-  requestWindow: Object.freeze([93, 108]) as readonly [number, number],
-  responseBody: "credits required 5\nratelimit 2 / 50 tokens",
-  responseStatus: "< 200 OK\nrequest_id req_123",
-  responseStatusOpacity: 35,
-  responseWindow: Object.freeze([22, 48]) as readonly [number, number],
+  searchDetail: "visited {visited} · cost {cost}",
+  searchHeadline: "dijkstra · api-gateway -> orders-db",
+  searchLabelWindow: range(8, 55),
+  searchPathWidth: 2,
+  searchTitle: "01 · algorithm",
+  searchTreeOpacity: 35,
+  searchWindow: range(5, 70),
   spokeCount: 12,
   spokeOpacity: 85,
   spokeWidth: 1,
@@ -54,6 +89,13 @@ export const networkSceneDefaults = Object.freeze({
   squareFalloff: 200,
   squareSize: Object.freeze([1.5, 26]) as readonly [number, number],
   squareSpacing: 60,
+  sweepDetail: "coverage {coverage}%",
+  sweepFailRate: 3,
+  sweepHeadline: "frontend e2e · {passed} passed · {failed} failed",
+  sweepLabelWindow: range(20, 115),
+  sweepTitle: "03 · testing",
+  sweepTrail: 160,
+  sweepWindow: range(8, 92),
   upperHubAnchor: Object.freeze({ x: -0.42, y: -0.36 }),
   upperHubColor: "#DAFB33",
 });
@@ -81,13 +123,8 @@ function readText(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function readLines(value: unknown, fallback: string): readonly string[] {
-  return Object.freeze(
-    readText(value, fallback)
-      .replace(/\r\n?/gu, "\n")
-      .split("\n")
-      .map((line) => line.replace(/\t/gu, "  ")),
-  );
+function readLine(value: unknown, fallback: string): string {
+  return readText(value, fallback).replace(/[\r\n\t]+/gu, " ");
 }
 
 function readPair(
@@ -114,25 +151,51 @@ function readPoint(value: unknown, fallback: NetworkPoint): NetworkPoint {
   });
 }
 
+function readLabel(
+  values: Values,
+  prefix: "search" | "failover" | "sweep",
+  fallback: Readonly<{ detail: string; headline: string; title: string; window: NetworkRange }>,
+): NetworkChapterLabel {
+  return Object.freeze({
+    detail: readLine(values[`${prefix}.detail`], fallback.detail),
+    headline: readLine(values[`${prefix}.headline`], fallback.headline),
+    title: readLine(values[`${prefix}.title`], fallback.title),
+    window: readPair(values[`${prefix}.labelWindow`], fallback.window, 0, 150),
+  });
+}
+
 export function readNetworkSceneParams(values: Values): NetworkSceneParams {
   const d = networkSceneDefaults;
   return Object.freeze({
     cameraZoom: readNumber(values["camera.zoom"], d.cameraZoom, 1, 3),
+    chapterAccent: readColor(values["chapters.accent"], d.chapterAccent),
+    chapterCuts: readPair(values["chapters.cuts"], d.chapterCuts, 5, 95),
     decodeGlyphs: readText(values["decode.glyphs"], d.decodeGlyphs),
     decodeRate: readNumber(values["decode.rate"], d.decodeRate, 1, 60),
     dotOpacity: readNumber(values["dots.opacity"], d.dotOpacity, 0, 100) / 100,
     dotSize: readNumber(values["dots.size"], d.dotSize, 0.5, 6),
+    failoverLabel: readLabel(values, "failover", {
+      detail: d.failoverDetail,
+      headline: d.failoverHeadline,
+      title: d.failoverTitle,
+      window: d.failoverLabelWindow,
+    }),
+    failoverReplicas: Math.round(readNumber(values["failover.replicas"], d.failoverReplicas, 1, 6)),
+    failoverWindow: readPair(values["failover.window"], d.failoverWindow, 0, 100),
     hubSize: readNumber(values["hubs.size"], d.hubSize, 6, 64),
     hubTravel: readNumber(values["hubs.travel"], d.hubTravel, 0, 800),
+    labelTitleOpacity: readNumber(values["decode.titleOpacity"], d.labelTitleOpacity, 0, 100) / 100,
     lowerHubAnchor: readPoint(values["lowerHub.anchor"], d.lowerHubAnchor),
     lowerHubColor: readColor(values["lowerHub.color"], d.lowerHubColor),
-    requestLines: readLines(values["request.text"], d.requestText),
-    requestWindow: readPair(values["request.window"], d.requestWindow, 0, 150),
-    responseBodyLines: readLines(values["response.body"], d.responseBody),
-    responseStatusLines: readLines(values["response.status"], d.responseStatus),
-    responseStatusOpacity:
-      readNumber(values["response.statusOpacity"], d.responseStatusOpacity, 0, 100) / 100,
-    responseWindow: readPair(values["response.window"], d.responseWindow, 0, 150),
+    searchLabel: readLabel(values, "search", {
+      detail: d.searchDetail,
+      headline: d.searchHeadline,
+      title: d.searchTitle,
+      window: d.searchLabelWindow,
+    }),
+    searchPathWidth: readNumber(values["search.pathWidth"], d.searchPathWidth, 0.5, 6),
+    searchTreeOpacity: readNumber(values["search.treeOpacity"], d.searchTreeOpacity, 0, 100) / 100,
+    searchWindow: readPair(values["search.window"], d.searchWindow, 0, 100),
     spokeCount: Math.round(readNumber(values["spokes.count"], d.spokeCount, 3, 24)),
     spokeOpacity: readNumber(values["spokes.opacity"], d.spokeOpacity, 0, 100) / 100,
     spokeWidth: readNumber(values["spokes.width"], d.spokeWidth, 0.5, 4),
@@ -146,6 +209,15 @@ export function readNetworkSceneParams(values: Values): NetworkSceneParams {
       networkSceneLimits.squareSpacingMin,
       networkSceneLimits.squareSpacingMax,
     ),
+    sweepFailRate: readNumber(values["sweep.failRate"], d.sweepFailRate, 0, 30) / 100,
+    sweepLabel: readLabel(values, "sweep", {
+      detail: d.sweepDetail,
+      headline: d.sweepHeadline,
+      title: d.sweepTitle,
+      window: d.sweepLabelWindow,
+    }),
+    sweepTrail: readNumber(values["sweep.trail"], d.sweepTrail, 0, 600),
+    sweepWindow: readPair(values["sweep.window"], d.sweepWindow, 0, 100),
     upperHubAnchor: readPoint(values["upperHub.anchor"], d.upperHubAnchor),
     upperHubColor: readColor(values["upperHub.color"], d.upperHubColor),
   });

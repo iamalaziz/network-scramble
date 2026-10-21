@@ -27,10 +27,20 @@ export const networkDragTargets = [
   "spokes.width",
   "spokes.opacity",
   "camera.zoom",
-  "response.statusOpacity",
-  "response.window",
-  "request.window",
+  "chapters.cuts",
+  "search.window",
+  "search.treeOpacity",
+  "search.pathWidth",
+  "search.labelWindow",
+  "failover.window",
+  "failover.replicas",
+  "failover.labelWindow",
+  "sweep.window",
+  "sweep.failRate",
+  "sweep.trail",
+  "sweep.labelWindow",
   "decode.rate",
+  "decode.titleOpacity",
 ] as const;
 
 /** Discrete edits (colors, text, canvas sizing) that redraw the live frame. */
@@ -38,9 +48,16 @@ export const networkChangeTargets = [
   "squares.color",
   "upperHub.color",
   "lowerHub.color",
-  "response.status",
-  "response.body",
-  "request.text",
+  "chapters.accent",
+  "search.title",
+  "search.headline",
+  "search.detail",
+  "failover.title",
+  "failover.headline",
+  "failover.detail",
+  "sweep.title",
+  "sweep.headline",
+  "sweep.detail",
   "decode.glyphs",
   "canvas.infinity",
   "canvas.aspectRatio",
@@ -128,8 +145,9 @@ export const networkRendererPipelineRegistration =
         id: "preview-frame",
         inputs: ["product.values", "timeline.time", "canvas.backing.width", "canvas.backing.height"],
         invalidatedBy: ["product.values", "timeline.time", "canvas.backing.width", "canvas.backing.height"],
-        // Builds the frame's squares, spokes and decoded labels; the result is
-        // painted as flat rectangles, lines and text runs on the retained canvas.
+        // Builds the frame's squares, spokes, chapter overlay (bounded Dijkstra
+        // replay, failover, test sweep) and decoded label; the result is painted
+        // as flat rectangles, lines and text runs on the retained canvas.
         kind: "vector-build",
         lifecycle: { cache: "none", resourceScope: "call" },
         output: "preview",
@@ -153,7 +171,7 @@ export const networkRendererPipelineRegistration =
         runsOn: "main",
       },
     ],
-    runtimeId: "network-scramble-v1",
+    runtimeId: "network-scramble-v2",
   });
 
 export const previewFramePass = networkRendererPipelineRegistration.getPass("preview-frame");

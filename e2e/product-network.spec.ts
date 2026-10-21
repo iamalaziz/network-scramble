@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { getNetworkBrowserTestName } from "../src/app/network-scene/acceptance-rows";
+import { getNetworkBrowserTestName, NETWORK_CHAPTER_SECONDS as at } from "../src/app/network-scene/acceptance-rows";
 import { createToolcraftBrowserProofSession, type ToolcraftBrowserProofSession } from "./browser-proof-session";
 import { expectToolcraftCompoundControlPartOutcome } from "./browser-state-evidence-helpers";
 import { expectToolcraftVectorScreenMotion } from "./browser-vector-screen-motion";
@@ -45,13 +45,27 @@ const productCases: readonly ControlCase[] = [
   { act: drag(0.9), id: "spokes.width" },
   { act: drag(0.05), id: "spokes.opacity" },
   { act: drag(0.95), id: "camera.zoom" },
-  { act: fill("< 503 RETRY\nrequest_id req_999"), id: "response.status" },
-  { act: drag(0.95), id: "response.statusOpacity" },
-  { act: fill("credits required 9\nratelimit 7 / 50 tokens"), id: "response.body" },
-  { act: fill("> GET /v1/models\n> key zz99"), id: "request.text" },
+  { act: fill("#00FFFF"), id: "chapters.accent", seconds: at.path },
+  { act: drag(0.95), id: "search.treeOpacity", seconds: at.search },
+  { act: drag(0.9), id: "search.pathWidth", seconds: at.path },
+  { act: fill("09 · graphs"), id: "search.title", seconds: at.search },
+  { act: fill("a-star · web-app -> users-api"), id: "search.headline", seconds: at.search },
+  { act: fill("expanded {visited} of {total}"), id: "search.detail", seconds: at.search },
+  { act: drag(0.95), id: "failover.replicas", seconds: at.elected },
+  { act: fill("09 · cluster"), id: "failover.title", seconds: at.failover },
+  { act: fill("billing-svc shard-3 timed out"), id: "failover.headline", seconds: at.failover },
+  { act: fill("raft term 43 · {replicas} followers"), id: "failover.detail", seconds: at.failover },
+  { act: drag(0.8), id: "sweep.failRate", seconds: at.sweep },
+  { act: drag(0.9), id: "sweep.trail", seconds: at.sweep },
+  { act: fill("09 · qa"), id: "sweep.title", seconds: at.sweep },
+  { act: fill("api contract · {failed} broken"), id: "sweep.headline", seconds: at.sweep },
+  { act: fill("{passed} of {total} green"), id: "sweep.detail", seconds: at.sweep },
   { act: drag(0.05), id: "decode.rate" },
   { act: fill("XYZ"), id: "decode.glyphs" },
+  { act: drag(0.95), id: "decode.titleOpacity" },
 ];
+
+const discreteSliders = new Set(["spokes.count", "failover.replicas"]);
 
 async function startSession(page: Page, seconds = SHOT_SECONDS): Promise<ToolcraftBrowserProofSession> {
   await openNetworkShot(page);
@@ -68,8 +82,8 @@ for (const controlCase of productCases) {
       session.controlAction(controlCase.id, controlCase.act),
       { requirementId: `network.${controlCase.id}`, selector: NETWORK_CANVAS },
     );
-    if (controlCase.id === "spokes.count") {
-      await expectToolcraftDiscreteSliderMarkers(page, "spokes.count", "network.spokes.count");
+    if (discreteSliders.has(controlCase.id)) {
+      await expectToolcraftDiscreteSliderMarkers(page, controlCase.id, `network.${controlCase.id}`);
     }
   });
 }
@@ -102,8 +116,15 @@ async function captureBaseline(page: Page): Promise<void> {
 
 const rangeCases = [
   { id: "squares.size", lower: [0.2, 0.05], seconds: SHOT_SECONDS, upper: 0.95 },
-  { id: "response.window", lower: [0.25, 0.08], seconds: 1.5, upper: 0.22 },
-  { id: "request.window", lower: [0.45, 0.3], seconds: SHOT_SECONDS, upper: 0.66 },
+  // Lower 59% → 23% and upper 45.5% move the 2.5 s frame through all three chapters.
+  { id: "chapters.cuts", lower: [0.6, 0.2], seconds: at.elected, upper: 0.45 },
+  { id: "search.window", lower: [0.2, 0.05], seconds: at.search, upper: 0.4 },
+  { id: "search.labelWindow", lower: [0.1, 0.03], seconds: at.search, upper: 0.25 },
+  // Lower 30% delays the failure past the 2.0 s frame; upper 15% elects replicas before it.
+  { id: "failover.window", lower: [0.3, 0.05], seconds: at.failover, upper: 0.15 },
+  { id: "failover.labelWindow", lower: [0.1, 0.03], seconds: at.failover, upper: 0.2 },
+  { id: "sweep.window", lower: [0.3, 0.05], seconds: at.sweep, upper: 0.8 },
+  { id: "sweep.labelWindow", lower: [0.25, 0.1], seconds: at.sweep, upper: 0.5 },
 ] as const;
 
 for (const rangeCase of rangeCases) {
